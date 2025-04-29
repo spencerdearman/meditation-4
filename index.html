@@ -1,0 +1,110 @@
+<script src="https://cdn.jsdelivr.net/gh/netizenorg/netnet-standard-library/build/nn.min.js"></script>
+
+<script>
+/* global nn */
+
+const GIFS = {
+  Clear: 'g_sandpiper.gif',
+  Rain: 'g_rain.gif',
+  Snow: 'g_snow.gif',
+  Clouds: 'g_clouds.gif',
+  Default: 'g_sandpiper.gif'
+}
+
+const COLOR = 'linen'
+
+function sleep (ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function getWeatherCondition () {
+  try {
+    const gps = await nn.askForGPS()
+    const pointURL = `https://api.weather.gov/points/${gps.lat},${gps.lng}`
+    const nws1 = await fetch(pointURL)
+    const pointData = await nws1.json()
+    const forecastURL = pointData.properties.forecast
+    const nws2 = await fetch(forecastURL)
+    const forecast = await nws2.json()
+    const shortForecast = forecast.properties.periods[0].shortForecast
+
+    if (shortForecast.includes('Rain')) return 'Rain'
+    if (shortForecast.includes('Snow')) return 'Snow'
+    if (shortForecast.includes('Cloud')) return 'Clouds'
+    if (shortForecast.includes('Clear') || shortForecast.includes('Sunny')) return 'Clear'
+    return 'Default'
+  } catch (e) {
+    console.error('Weather API error:', e)
+    return 'Default'
+  }
+}
+
+async function createGIF (gifURL, x, y) {
+  const gif = await nn.loadImage(gifURL)
+  
+  nn.create('img')
+    .set({ 
+      src: `${gifURL}#${Math.random()}`
+    })
+    .css({
+      position: 'absolute',
+      left: x - gif.width / 2,
+      top: y - gif.height / 2,
+      imageRendering: 'pixelated'
+    })
+    .addTo('body')
+}
+
+async function setup () {
+  nn.get('body').css({ backgroundColor: COLOR })
+
+  const weather = await getWeatherCondition()
+  const selectedGIF = GIFS[weather] || GIFS['Default']
+
+  const gif = await nn.loadImage(selectedGIF)
+
+  let rad = 400
+  let num = 10000
+  let d = 1.5
+  
+  // Adjust parameters based on weather
+  if (weather === 'Rain') {
+    rad = 300
+    num = 5000
+    d = 2.0
+  } else if (weather === 'Snow') {
+    rad = 200
+    num = 3000
+    d = 2.5
+  } else if (weather === 'Clouds') {
+    rad = 500
+    num = 8000
+    d = 1.8
+  } else if (weather === 'Clear') {
+    rad = 600
+    num = 12000
+    d = 1.2
+  }
+
+  const n = 5
+  const s = 2 * Math.PI / num
+  const cx = nn.width / 2
+  const cy = nn.height / 2
+
+  for (let i = 0; i < num; i++) {
+    const t = i * s
+    const x = Math.cos(n * t) * Math.cos(t)
+    const y = Math.sin(n * t)
+    const z = Math.cos(n * t) * Math.sin(t)
+    
+    const perspective = 1 / (z + d)
+    const x_screen = x * rad * perspective + cx
+    const y_screen = y * rad * perspective + cy
+    
+    await sleep(0.1)
+    createGIF(selectedGIF, x_screen, y_screen)
+  } 
+}
+
+nn.on('load', setup)
+</script>
